@@ -152,9 +152,7 @@ func (h *HashID) Encode(numbers []int) (string, error) {
 	return h.EncodeInt64(numbers64)
 }
 
-// EncodeInt64 hashes an array of int64 to a string containing at least MinLength characters taken from the Alphabet.
-// Use DecodeInt64 using the same Alphabet and Salt to get back the array of int64.
-func (h *HashID) EncodeInt64(numbers []int64) (string, error) {
+func encodeInt[T int64 | uint64](h *HashID, numbers []T) (string, error) {
 	if len(numbers) == 0 {
 		return "", errors.New("encoding empty array of numbers makes no sense")
 	}
@@ -163,12 +161,11 @@ func (h *HashID) EncodeInt64(numbers []int64) (string, error) {
 			return "", errors.New("negative number not supported")
 		}
 	}
-
 	alphabet := duplicateRuneSlice(h.alphabet)
 
-	numbersHash := int64(0)
+	numbersHash := T(0)
 	for i, n := range numbers {
-		numbersHash += (n % int64(i+100))
+		numbersHash += (n % T(i+100))
 	}
 
 	maxRuneLength := h.maxLengthPerNumber * len(numbers)
@@ -177,7 +174,7 @@ func (h *HashID) EncodeInt64(numbers []int64) (string, error) {
 	}
 
 	result := make([]rune, 0, maxRuneLength)
-	lottery := alphabet[numbersHash%int64(len(alphabet))]
+	lottery := alphabet[numbersHash%T(len(alphabet))]
 	result = append(result, lottery)
 	hashBuf := make([]rune, maxRuneLength)
 	buffer := make([]rune, len(alphabet)+len(h.salt)+1)
@@ -188,21 +185,22 @@ func (h *HashID) EncodeInt64(numbers []int64) (string, error) {
 		buffer = append(buffer, h.salt...)
 		buffer = append(buffer, alphabet...)
 		consistentShuffleInPlace(alphabet, buffer[:len(alphabet)])
-		hashBuf = hash(n, alphabet, hashBuf)
+		// It is safe to cast n to uint64 because we checked for negative numbers above.
+		hashBuf = hash(uint64(n), alphabet, hashBuf)
 		result = append(result, hashBuf...)
 
 		if i+1 < len(numbers) {
-			n %= int64(hashBuf[0]) + int64(i)
-			result = append(result, h.seps[n%int64(len(h.seps))])
+			n %= T(hashBuf[0]) + T(i)
+			result = append(result, h.seps[n%T(len(h.seps))])
 		}
 	}
 
 	if len(result) < h.minLength {
-		guardIndex := (numbersHash + int64(result[0])) % int64(len(h.guards))
+		guardIndex := (numbersHash + T(result[0])) % T(len(h.guards))
 		result = append([]rune{h.guards[guardIndex]}, result...)
 
 		if len(result) < h.minLength {
-			guardIndex = (numbersHash + int64(result[2])) % int64(len(h.guards))
+			guardIndex = (numbersHash + T(result[2])) % T(len(h.guards))
 			result = append(result, h.guards[guardIndex])
 		}
 	}
@@ -218,6 +216,16 @@ func (h *HashID) EncodeInt64(numbers []int64) (string, error) {
 	}
 
 	return string(result), nil
+}
+
+// EncodeInt64 hashes an array of int64 to a string containing at least MinLength characters taken from the Alphabet.
+// Use DecodeInt64 using the same Alphabet and Salt to get back the array of int64.
+func (h *HashID) EncodeInt64(numbers []int64) (string, error) {
+	return encodeInt(h, numbers)
+}
+
+func (h *HashID) EncodeUint64(numbers []uint64) (string, error) {
+	return encodeInt(h, numbers)
 }
 
 // EncodeHex hashes a hexadecimal string to a string containing at least MinLength characters taken from the Alphabet.
@@ -372,12 +380,12 @@ func splitRunes(input, seps []rune) [][]rune {
 	return result
 }
 
-func hash(input int64, alphabet []rune, result []rune) []rune {
+func hash(input uint64, alphabet []rune, result []rune) []rune {
 	result = result[:0]
 	for {
-		r := alphabet[input%int64(len(alphabet))]
+		r := alphabet[input%uint64(len(alphabet))]
 		result = append(result, r)
-		input /= int64(len(alphabet))
+		input /= uint64(len(alphabet))
 		if input == 0 {
 			break
 		}
