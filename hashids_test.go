@@ -2,6 +2,7 @@ package hashids
 
 import (
 	"math"
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -46,6 +47,53 @@ func TestEncodeDecodeInt64(t *testing.T) {
 
 	if !reflect.DeepEqual(dec, numbers) {
 		t.Errorf("Decoded numbers `%v` did not match with original `%v`", dec, numbers)
+	}
+}
+
+func TestEncodeDecodeUint64(t *testing.T) {
+	hdata := NewData()
+	hdata.MinLength = 30
+	hdata.Salt = "this is my salt"
+
+	hid, _ := NewWithData(hdata)
+
+	numbers := []uint64{45, 434, 1313, 99, math.MaxInt64}
+	hash, err := hid.EncodeUint64(numbers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := hid.DecodeUint64WithError(hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("%v -> %v -> %v", numbers, hash, dec)
+
+	if !reflect.DeepEqual(dec, numbers) {
+		t.Errorf("Decoded numbers `%v` did not match with original `%v`", dec, numbers)
+	}
+
+	for i := 0; i < 100_000; i++ {
+		for n := 1; n < 10; n++ {
+			nums := make([]uint64, n)
+			for i := 0; i < n; i++ {
+				nums[i] = rand.Uint64()
+			}
+
+			hash, err := hid.EncodeUint64(nums)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			dec, err := hid.DecodeUint64WithError(hash)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !reflect.DeepEqual(dec, nums) {
+				t.Errorf("Decoded numbers `%v` did not match with original `%v`", dec, nums)
+			}
+		}
 	}
 }
 

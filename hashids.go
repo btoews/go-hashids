@@ -299,13 +299,24 @@ func (h *HashID) DecodeInt64(hash string) []int64 {
 // It is symmetric with EncodeInt64 if the Alphabet and Salt are the same ones which were used to hash.
 // MinLength has no effect on DecodeInt64.
 func (h *HashID) DecodeInt64WithError(hash string) ([]int64, error) {
+	return decodeIntWithError[int64](h, hash)
+}
+
+// DecodeUint64 unhashes the string passed to an array of uint64.
+// It is symmetric with EncodeUint64 if the Alphabet and Salt are the same ones which were used to hash.
+// MinLength has no effect on DecodeUint64.
+func (h *HashID) DecodeUint64WithError(hash string) ([]uint64, error) {
+	return decodeIntWithError[uint64](h, hash)
+}
+
+func decodeIntWithError[T int64 | uint64](h *HashID, hash string) ([]T, error) {
 	hashes := splitRunes([]rune(hash), h.guards)
 	hashIndex := 0
 	if len(hashes) == 2 || len(hashes) == 3 {
 		hashIndex = 1
 	}
 
-	result := make([]int64, 0, 10)
+	result := make([]T, 0, 10)
 
 	hashBreakdown := hashes[hashIndex]
 	if len(hashBreakdown) > 0 {
@@ -320,7 +331,7 @@ func (h *HashID) DecodeInt64WithError(hash string) ([]int64, error) {
 			buffer = append(buffer, h.salt...)
 			buffer = append(buffer, alphabet...)
 			consistentShuffleInPlace(alphabet, buffer[:len(alphabet)])
-			number, err := unhash(subHash, alphabet)
+			number, err := unhash[T](subHash, alphabet)
 			if err != nil {
 				return nil, err
 			}
@@ -328,7 +339,7 @@ func (h *HashID) DecodeInt64WithError(hash string) ([]int64, error) {
 		}
 	}
 
-	sanityCheck, _ := h.EncodeInt64(result)
+	sanityCheck, _ := encodeInt[T](h, result)
 	if sanityCheck != hash {
 		return result, fmt.Errorf("mismatch between encode and decode: %s start %s"+
 			" re-encoded. result: %v", hash, sanityCheck, result)
@@ -397,8 +408,8 @@ func hash(input uint64, alphabet []rune, result []rune) []rune {
 	return result
 }
 
-func unhash(input, alphabet []rune) (int64, error) {
-	result := int64(0)
+func unhash[T int64 | uint64](input, alphabet []rune) (T, error) {
+	var result T
 	for _, inputRune := range input {
 		alphabetPos := -1
 		for pos, alphabetRune := range alphabet {
@@ -411,7 +422,7 @@ func unhash(input, alphabet []rune) (int64, error) {
 			return 0, errors.New("alphabet used for hash was different")
 		}
 
-		result = result*int64(len(alphabet)) + int64(alphabetPos)
+		result = result*T(len(alphabet)) + T(alphabetPos)
 	}
 	return result, nil
 }
